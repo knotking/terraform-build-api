@@ -1,0 +1,5 @@
+{
+  "name": "TerraForge AI",
+  "description": "An intelligent Terraform development environment. Generate, refactor, and analyze Infrastructure as Code (IaC) using advanced Gemini models.",
+  "requestFramePermissions": []
+}
