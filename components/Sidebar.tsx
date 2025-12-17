@@ -12,7 +12,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentMode, setMode }) => {
     { mode: AppMode.GENERATE, icon: Hammer, label: 'Generate', desc: 'Create from prompt' },
     { mode: AppMode.EDIT, icon: Edit3, label: 'Edit & Refactor', desc: 'Modify existing code' },
     { mode: AppMode.ANALYZE, icon: ShieldAlert, label: 'Analyze', desc: 'Security & Best Practices' },
-    // { mode: AppMode.HISTORY, icon: History, label: 'History', desc: 'Past sessions' },
+    { mode: AppMode.HISTORY, icon: History, label: 'History', desc: 'Past sessions' },
   ];
 
   return (

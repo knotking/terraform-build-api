@@ -9,6 +9,7 @@ export interface GenerationResult {
   id: string;
   type: AppMode;
   input: string; // The prompt or the source code
+  instruction?: string; // Optional, specifically for EDIT mode
   output: string; // The generated response
   timestamp: number;
   model: string;

@@ -1,9 +1,11 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import CodeViewer from './components/CodeViewer';
+import HistoryView from './components/HistoryView';
 import { AppMode, GenerationResult } from './types';
 import { generateTerraform, editTerraform, analyzeTerraform } from './services/geminiService';
-import { Play, Sparkles, Copy, Check, Save, Download, RefreshCw, XCircle } from 'lucide-react';
+import { saveToHistory } from './services/historyService';
+import { Play, Sparkles, Copy, Check, Download, RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.GENERATE);
@@ -44,12 +46,31 @@ const App: React.FC = () => {
         result = await analyzeTerraform(inputContent);
       }
       setOutput(result);
+      
+      // Save to History on success
+      if (result && !result.startsWith('Error')) {
+        saveToHistory({
+            type: mode,
+            input: inputContent,
+            instruction: mode === AppMode.EDIT ? instruction : undefined,
+            output: result,
+            model: 'gemini-2.5-flash'
+        });
+      }
+
     } catch (e) {
       console.error(e);
       setOutput("An error occurred while processing your request.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRestoreHistory = (item: GenerationResult) => {
+    setMode(item.type);
+    setInputContent(item.input);
+    setInstruction(item.instruction || '');
+    setOutput(item.output);
   };
 
   const copyToClipboard = () => {
@@ -146,6 +167,7 @@ const App: React.FC = () => {
           case AppMode.GENERATE: return 'Infrastructure Generator';
           case AppMode.EDIT: return 'Code Refactor & Edit';
           case AppMode.ANALYZE: return 'Security & Logic Analyzer';
+          case AppMode.HISTORY: return 'Session History';
           default: return 'Workspace';
       }
   };
@@ -162,90 +184,95 @@ const App: React.FC = () => {
                 <p className="text-xs text-slate-500 mt-0.5">Powered by Google Gemini 2.5</p>
             </div>
             <div className="flex items-center space-x-4">
-                {/* Example placeholder for profile or settings */}
                 <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700"></div>
             </div>
         </header>
 
         {/* Main Workspace */}
-        <main className="flex-1 p-4 lg:p-6 overflow-hidden flex flex-col lg:flex-row gap-6">
-            
-            {/* LEFT PANE: INPUT */}
-            <div className="flex-1 flex flex-col min-h-[300px] lg:h-full glass-panel rounded-2xl p-1 shadow-2xl">
-                <div className="flex-1 p-4 overflow-hidden">
-                    {renderInputSection()}
+        <main className="flex-1 p-4 lg:p-6 overflow-hidden flex flex-col relative">
+            {mode === AppMode.HISTORY ? (
+                <div className="flex-1 glass-panel rounded-2xl shadow-2xl overflow-hidden">
+                    <HistoryView onRestore={handleRestoreHistory} />
                 </div>
-                <div className="p-4 border-t border-slate-700/50 bg-slate-900/50 rounded-b-xl flex justify-between items-center">
-                   <div className="text-xs text-slate-500 italic hidden sm:block">
-                        {mode === AppMode.GENERATE ? 'Press Generate to create IaC.' : 'Paste code to begin.'}
-                   </div>
-                    <button
-                        onClick={handleAction}
-                        disabled={isLoading || (!inputContent.trim())}
-                        className={`flex items-center px-6 py-2.5 rounded-lg font-medium text-sm transition-all shadow-lg
-                            ${isLoading 
-                                ? 'bg-slate-700 text-slate-400 cursor-not-allowed' 
-                                : 'bg-tf-600 hover:bg-tf-500 text-white shadow-tf-500/20 hover:shadow-tf-500/40 active:transform active:scale-95'
-                            }
-                        `}
-                    >
-                        {isLoading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin"/> : <Sparkles className="w-4 h-4 mr-2" />}
-                        {getActionButtonText()}
-                    </button>
-                </div>
-            </div>
-
-            {/* RIGHT PANE: OUTPUT */}
-            <div className="flex-1 flex flex-col min-h-[300px] lg:h-full glass-panel rounded-2xl p-1 shadow-2xl overflow-hidden relative">
-                 <div className="absolute top-0 left-0 w-full h-12 bg-slate-900/50 border-b border-slate-700/50 flex items-center justify-between px-4 z-20 backdrop-blur-sm rounded-t-xl">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                        {mode === AppMode.ANALYZE ? 'Report Output' : 'Generated Code'}
-                    </span>
-                    <div className="flex items-center space-x-2">
-                         {output && (
-                             <>
-                                <button 
-                                    onClick={handleDownload}
-                                    className="p-1.5 hover:bg-slate-700 rounded-md text-slate-400 hover:text-white transition-colors"
-                                    title="Download"
-                                >
-                                    <Download className="w-4 h-4" />
-                                </button>
-                                <button 
-                                    onClick={copyToClipboard}
-                                    className="p-1.5 hover:bg-slate-700 rounded-md text-slate-400 hover:text-white transition-colors relative"
-                                    title="Copy"
-                                >
-                                    {showCopied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                                </button>
-                             </>
-                         )}
+            ) : (
+                <div className="flex-1 flex flex-col lg:flex-row gap-6 h-full overflow-hidden">
+                    {/* LEFT PANE: INPUT */}
+                    <div className="flex-1 flex flex-col min-h-[300px] lg:h-full glass-panel rounded-2xl p-1 shadow-2xl">
+                        <div className="flex-1 p-4 overflow-hidden">
+                            {renderInputSection()}
+                        </div>
+                        <div className="p-4 border-t border-slate-700/50 bg-slate-900/50 rounded-b-xl flex justify-between items-center">
+                        <div className="text-xs text-slate-500 italic hidden sm:block">
+                                {mode === AppMode.GENERATE ? 'Press Generate to create IaC.' : 'Paste code to begin.'}
+                        </div>
+                            <button
+                                onClick={handleAction}
+                                disabled={isLoading || (!inputContent.trim())}
+                                className={`flex items-center px-6 py-2.5 rounded-lg font-medium text-sm transition-all shadow-lg
+                                    ${isLoading 
+                                        ? 'bg-slate-700 text-slate-400 cursor-not-allowed' 
+                                        : 'bg-tf-600 hover:bg-tf-500 text-white shadow-tf-500/20 hover:shadow-tf-500/40 active:transform active:scale-95'
+                                    }
+                                `}
+                            >
+                                {isLoading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin"/> : <Sparkles className="w-4 h-4 mr-2" />}
+                                {getActionButtonText()}
+                            </button>
+                        </div>
                     </div>
-                 </div>
 
-                 <div className="flex-1 pt-12 bg-[#0d1117] overflow-hidden rounded-xl relative">
-                    {output ? (
-                        <CodeViewer content={output} isMarkdown={true} />
-                    ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-600 p-8 text-center">
-                            {isLoading ? (
-                                <div className="flex flex-col items-center animate-pulse">
-                                    <div className="w-12 h-12 border-4 border-tf-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                                    <p className="text-sm font-medium text-tf-500">Gemini is thinking...</p>
-                                </div>
+                    {/* RIGHT PANE: OUTPUT */}
+                    <div className="flex-1 flex flex-col min-h-[300px] lg:h-full glass-panel rounded-2xl p-1 shadow-2xl overflow-hidden relative">
+                        <div className="absolute top-0 left-0 w-full h-12 bg-slate-900/50 border-b border-slate-700/50 flex items-center justify-between px-4 z-20 backdrop-blur-sm rounded-t-xl">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                {mode === AppMode.ANALYZE ? 'Report Output' : 'Generated Code'}
+                            </span>
+                            <div className="flex items-center space-x-2">
+                                {output && (
+                                    <>
+                                        <button 
+                                            onClick={handleDownload}
+                                            className="p-1.5 hover:bg-slate-700 rounded-md text-slate-400 hover:text-white transition-colors"
+                                            title="Download"
+                                        >
+                                            <Download className="w-4 h-4" />
+                                        </button>
+                                        <button 
+                                            onClick={copyToClipboard}
+                                            className="p-1.5 hover:bg-slate-700 rounded-md text-slate-400 hover:text-white transition-colors relative"
+                                            title="Copy"
+                                        >
+                                            {showCopied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex-1 pt-12 bg-[#0d1117] overflow-hidden rounded-xl relative">
+                            {output ? (
+                                <CodeViewer content={output} isMarkdown={true} />
                             ) : (
-                                <>
-                                    <div className="w-16 h-16 rounded-2xl bg-slate-800/50 flex items-center justify-center mb-4">
-                                        <Play className="w-6 h-6 ml-1 opacity-50" />
-                                    </div>
-                                    <p className="text-sm">Output will appear here.</p>
-                                </>
+                                <div className="h-full flex flex-col items-center justify-center text-slate-600 p-8 text-center">
+                                    {isLoading ? (
+                                        <div className="flex flex-col items-center animate-pulse">
+                                            <div className="w-12 h-12 border-4 border-tf-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                                            <p className="text-sm font-medium text-tf-500">Gemini is thinking...</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="w-16 h-16 rounded-2xl bg-slate-800/50 flex items-center justify-center mb-4">
+                                                <Play className="w-6 h-6 ml-1 opacity-50" />
+                                            </div>
+                                            <p className="text-sm">Output will appear here.</p>
+                                        </>
+                                    )}
+                                </div>
                             )}
                         </div>
-                    )}
-                 </div>
-            </div>
-
+                    </div>
+                </div>
+            )}
         </main>
       </div>
     </div>
