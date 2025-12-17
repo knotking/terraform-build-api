@@ -5,25 +5,38 @@ import HistoryView from './components/HistoryView';
 import { AppMode, GenerationResult } from './types';
 import { generateTerraform, editTerraform, analyzeTerraform } from './services/geminiService';
 import { saveToHistory } from './services/historyService';
+import { saveDraft, getDraft } from './services/storageService';
 import { Play, Sparkles, Copy, Check, Download, RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.GENERATE);
-  const [inputContent, setInputContent] = useState('');
-  const [instruction, setInstruction] = useState(''); // For Edit mode
+  
+  // Initialize state from localStorage draft for the default mode
+  const [inputContent, setInputContent] = useState(() => getDraft(AppMode.GENERATE).content);
+  const [instruction, setInstruction] = useState(() => getDraft(AppMode.GENERATE).instruction);
+  
   const [isLoading, setIsLoading] = useState(false);
   const [output, setOutput] = useState('');
   const [showCopied, setShowCopied] = useState(false);
-  
-  // Reset output when mode changes to clear confusion, optionally
+
+  // Auto-save effect: Saves current inputs to the draft of the current mode
   useEffect(() => {
-    // Optional: clear output on mode switch? 
-    // Let's keep it to allow users to reference previous work if they switch back and forth mentally,
-    // but typically a reset is cleaner. 
-    // setOutput(''); 
-    // setInputContent(''); 
-    // setInstruction('');
-  }, [mode]);
+    if (mode !== AppMode.HISTORY) {
+      saveDraft(mode, inputContent, instruction);
+    }
+  }, [inputContent, instruction, mode]);
+
+  const handleModeChange = (newMode: AppMode) => {
+    // Load draft for the new mode
+    const draft = getDraft(newMode);
+    setInputContent(draft.content);
+    setInstruction(draft.instruction);
+    
+    // Clear output when switching contexts to avoid confusion
+    setOutput('');
+    
+    setMode(newMode);
+  };
 
   const handleAction = async () => {
     if (!inputContent.trim() && mode !== AppMode.GENERATE) {
@@ -67,6 +80,8 @@ const App: React.FC = () => {
   };
 
   const handleRestoreHistory = (item: GenerationResult) => {
+    // When restoring history, we explicitly override the draft logic
+    // The auto-save effect will run after this and save the restored content as the new draft
     setMode(item.type);
     setInputContent(item.input);
     setInstruction(item.instruction || '');
@@ -174,7 +189,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-[#0f172a] overflow-hidden text-slate-200 font-sans selection:bg-tf-500/30">
-      <Sidebar currentMode={mode} setMode={setMode} />
+      <Sidebar currentMode={mode} setMode={handleModeChange} />
 
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* Header */}
